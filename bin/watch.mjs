@@ -195,9 +195,24 @@ function discover(panes) {
   return found;
 }
 
+/** pane 列表连续空/失败到第几轮就开始抱怨 —— 静默早退会把 watcher 变成空转进程。 */
+let emptyPaneRounds = 0;
+
 function tick() {
   const panes = listPanes();
-  if (!panes.length) return; // herdr 没跑或还没起来，下一轮再说
+  if (!panes.length) {
+    // herdr 没跑或还没起来，下一轮再说。但持续空就不是"还没起来"了：
+    // 上一轮这个静默 return 掩盖了 herdr 不在 PATH 上的情况（见 lib/herdr.mjs）。
+    emptyPaneRounds += 1;
+    if (emptyPaneRounds === 5) {
+      log(`连续 ${emptyPaneRounds} 轮拿不到 pane 列表；herdr 二进制或 socket 可能不可达`);
+      console.error(
+        `[herdr-openclaw] 连续 ${emptyPaneRounds} 轮拿不到 pane 列表，请检查 herdr 是否可达`,
+      );
+    }
+    return;
+  }
+  emptyPaneRounds = 0;
   const byId = new Map(panes.map((p) => [p.pane_id, p]));
 
   const now = Date.now();
